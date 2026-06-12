@@ -361,8 +361,9 @@
     <h1>💰 مدير المصروفات الشهرية</h1>
     <div class="subtitle">تتبع دخلك ومصروفاتك بسهولة</div>
   </div>
-  <div style="font-size:1.1rem;font-weight:600;opacity:.9;">
-    {{ arabic_months[current_month] }} {{ current_year }}
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div style="font-size:1rem;font-weight:600;opacity:.9;">👤 {{ user_name }}</div>
+    <a href="/logout" style="padding:7px 16px;background:rgba(255,255,255,.2);color:white;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600;">خروج 🚪</a>
   </div>
 </header>
 

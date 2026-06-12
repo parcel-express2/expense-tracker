@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
+from werkzeug.security import generate_password_hash, check_password_hash
 import calendar
+import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'expense-tracker-secret-2024'
@@ -32,8 +34,18 @@ INCOME_SOURCES = [
 ]
 
 
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    pin_hash = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    incomes = db.relationship('Income', backref='user', lazy=True, cascade='all, delete-orphan')
+    expenses = db.relationship('Expense', backref='user', lazy=True, cascade='all, delete-orphan')
+
+
 class Income(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     source = db.Column(db.String(50), nullable=False)
     description = db.Column(db.String(200))
@@ -50,6 +62,7 @@ class Income(db.Model):
 
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
     description = db.Column(db.String(200))
@@ -82,14 +95,72 @@ def get_source_info(key):
     return (key, key, '💵')
 
 
+def login_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ── AUTH ──────────────────────────────────────────────
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        pin = request.form['pin'].strip()
+        user = User.query.filter_by(name=name).first()
+        if user and check_password_hash(user.pin_hash, pin):
+            session['user_id'] = user.id
+            session['user_name'] = user.name
+            flash(f'مرحباً {user.name}! 👋', 'success')
+            return redirect(url_for('index'))
+        flash('الاسم أو الرمز غير صحيح ❌', 'error')
+    return render_template('login.html')
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        pin = request.form['pin'].strip()
+        if len(pin) != 4 or not pin.isdigit():
+            flash('الرمز يجب أن يكون 4 أرقام فقط ❌', 'error')
+            return render_template('register.html')
+        if User.query.filter_by(name=name).first():
+            flash('هذا الاسم مستخدم بالفعل ❌', 'error')
+            return render_template('register.html')
+        user = User(name=name, pin_hash=generate_password_hash(pin))
+        db.session.add(user)
+        db.session.commit()
+        session['user_id'] = user.id
+        session['user_name'] = user.name
+        flash(f'تم إنشاء حسابك بنجاح! مرحباً {name} 🎉', 'success')
+        return redirect(url_for('index'))
+    return render_template('register.html')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# ── MAIN ──────────────────────────────────────────────
+
 @app.route('/')
+@login_required
 def index():
+    user_id = session['user_id']
     today = date.today()
     month = request.args.get('month', today.month, type=int)
     year = request.args.get('year', today.year, type=int)
 
-    incomes = Income.query.filter_by(month=month, year=year).all()
-    expenses = Expense.query.filter_by(month=month, year=year).all()
+    incomes = Income.query.filter_by(user_id=user_id, month=month, year=year).all()
+    expenses = Expense.query.filter_by(user_id=user_id, month=month, year=year).all()
 
     total_income = sum(i.amount for i in incomes)
     total_expense = sum(e.amount for e in expenses)
@@ -100,7 +171,6 @@ def index():
     for exp in expenses:
         expense_by_category[exp.category] = expense_by_category.get(exp.category, 0) + exp.amount
 
-    months_list = [(m, calendar.month_name[m]) for m in range(1, 13)]
     years_list = list(range(today.year - 2, today.year + 2))
 
     arabic_months = {
@@ -125,10 +195,12 @@ def index():
         arabic_months=arabic_months,
         get_category_info=get_category_info,
         get_source_info=get_source_info,
+        user_name=session.get('user_name'),
     )
 
 
 @app.route('/add_income', methods=['POST'])
+@login_required
 def add_income():
     amount = float(request.form['amount'])
     source = request.form['source']
@@ -136,7 +208,8 @@ def add_income():
     date_str = request.form['date']
     entry_date = datetime.strptime(date_str, '%Y-%m-%d').date()
 
-    income = Income(amount=amount, source=source, description=description, date=entry_date)
+    income = Income(user_id=session['user_id'], amount=amount, source=source,
+                    description=description, date=entry_date)
     db.session.add(income)
     db.session.commit()
     flash('تمت إضافة الدخل بنجاح ✅', 'success')
@@ -144,6 +217,7 @@ def add_income():
 
 
 @app.route('/add_expense', methods=['POST'])
+@login_required
 def add_expense():
     amount = float(request.form['amount'])
     category = request.form['category']
@@ -151,7 +225,8 @@ def add_expense():
     date_str = request.form['date']
     entry_date = datetime.strptime(date_str, '%Y-%m-%d').date()
 
-    expense = Expense(amount=amount, category=category, description=description, date=entry_date)
+    expense = Expense(user_id=session['user_id'], amount=amount, category=category,
+                      description=description, date=entry_date)
     db.session.add(expense)
     db.session.commit()
     flash('تمت إضافة المصروف بنجاح ✅', 'success')
@@ -159,8 +234,9 @@ def add_expense():
 
 
 @app.route('/delete_income/<int:id>')
+@login_required
 def delete_income(id):
-    income = Income.query.get_or_404(id)
+    income = Income.query.filter_by(id=id, user_id=session['user_id']).first_or_404()
     month, year = income.month, income.year
     db.session.delete(income)
     db.session.commit()
@@ -169,8 +245,9 @@ def delete_income(id):
 
 
 @app.route('/delete_expense/<int:id>')
+@login_required
 def delete_expense(id):
-    expense = Expense.query.get_or_404(id)
+    expense = Expense.query.filter_by(id=id, user_id=session['user_id']).first_or_404()
     month, year = expense.month, expense.year
     db.session.delete(expense)
     db.session.commit()
@@ -179,12 +256,14 @@ def delete_expense(id):
 
 
 @app.route('/api/chart_data')
+@login_required
 def chart_data():
+    user_id = session['user_id']
     today = date.today()
     month = request.args.get('month', today.month, type=int)
     year = request.args.get('year', today.year, type=int)
 
-    expenses = Expense.query.filter_by(month=month, year=year).all()
+    expenses = Expense.query.filter_by(user_id=user_id, month=month, year=year).all()
     expense_by_category = {}
     for exp in expenses:
         expense_by_category[exp.category] = expense_by_category.get(exp.category, 0) + exp.amount
@@ -200,8 +279,8 @@ def chart_data():
 
     monthly_data = []
     for m in range(1, 13):
-        inc = db.session.query(db.func.sum(Income.amount)).filter_by(month=m, year=year).scalar() or 0
-        exp = db.session.query(db.func.sum(Expense.amount)).filter_by(month=m, year=year).scalar() or 0
+        inc = db.session.query(db.func.sum(Income.amount)).filter_by(user_id=user_id, month=m, year=year).scalar() or 0
+        exp = db.session.query(db.func.sum(Expense.amount)).filter_by(user_id=user_id, month=m, year=year).scalar() or 0
         monthly_data.append({'income': inc, 'expense': exp})
 
     return jsonify({
@@ -213,6 +292,5 @@ def chart_data():
 
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 5050))
     app.run(host='0.0.0.0', debug=True, port=port)

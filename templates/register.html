@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إنشاء حساب — مدير المصروفات</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: white;
+    border-radius: 24px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    text-align: center;
+  }
+  .logo { font-size: 3rem; margin-bottom: 10px; }
+  h1 { font-size: 1.4rem; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
+  .sub { color: #64748b; font-size: .85rem; margin-bottom: 28px; }
+  .form-group { margin-bottom: 16px; text-align: right; }
+  .form-group label { display: block; font-size: .82rem; font-weight: 600; color: #64748b; margin-bottom: 5px; }
+  .form-group input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 1rem;
+    color: #1e293b;
+    transition: border-color .2s;
+    font-family: inherit;
+    text-align: center;
+    letter-spacing: 4px;
+  }
+  .form-group input[type="text"] { letter-spacing: 0; text-align: right; }
+  .form-group input:focus { outline: none; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.1); }
+  .btn {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .1s;
+    margin-top: 4px;
+    font-family: inherit;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-success { background: #16a34a; color: white; }
+  .btn-success:hover { background: #15803d; box-shadow: 0 4px 12px rgba(22,163,74,.4); }
+  .divider { margin: 20px 0; color: #94a3b8; font-size: .85rem; position: relative; }
+  .divider::before, .divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background: #e2e8f0;
+  }
+  .divider::before { right: 0; }
+  .divider::after { left: 0; }
+  .link-btn {
+    display: block;
+    padding: 12px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    color: #2563eb;
+    font-weight: 600;
+    font-size: .9rem;
+    text-decoration: none;
+    transition: background .15s;
+  }
+  .link-btn:hover { background: #f1f5f9; }
+  .flash { padding: 10px 14px; border-radius: 8px; font-size: .85rem; font-weight: 600; margin-bottom: 16px; }
+  .flash.success { background: #dcfce7; color: #166534; }
+  .flash.error   { background: #fee2e2; color: #991b1b; }
+  .pin-hint { font-size: .75rem; color: #94a3b8; margin-top: 4px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🆕</div>
+  <h1>إنشاء حساب جديد</h1>
+  <div class="sub">بياناتك خاصة بك فقط</div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="POST">
+    <div class="form-group">
+      <label>اسمك</label>
+      <input type="text" name="name" placeholder="مثال: أحمد" required autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>رمز PIN</label>
+      <input type="password" name="pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" required inputmode="numeric">
+      <div class="pin-hint">اختر 4 أرقام تتذكرها</div>
+    </div>
+    <button type="submit" class="btn btn-success">✅ إنشاء الحساب</button>
+  </form>
+
+  <div class="divider">عندك حساب؟</div>
+  <a href="/login" class="link-btn">🔐 تسجيل الدخول</a>
+</div>
+</body>
+</html>
