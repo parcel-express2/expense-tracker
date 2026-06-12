@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مدير المصروفات الشهرية</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --income-color: #16a34a;
+    --expense-color: #dc2626;
+    --balance-pos: #16a34a;
+    --balance-neg: #dc2626;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+    color: white;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 16px rgba(37,99,235,.4);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header .subtitle { font-size: .85rem; opacity: .8; margin-top: 2px; }
+
+  /* ── MONTH SELECTOR ── */
+  .month-bar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .month-bar label { font-weight: 600; color: var(--muted); font-size: .9rem; }
+  .month-bar select {
+    padding: 7px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: .9rem;
+    background: white;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .month-bar button {
+    padding: 7px 20px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: .9rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background .2s;
+  }
+  .month-bar button:hover { background: var(--primary-dark); }
+
+  /* ── FLASH ── */
+  .flash-container { padding: 12px 32px 0; }
+  .flash {
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .flash.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+  .flash.info    { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+  .flash.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+  /* ── MAIN GRID ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 24px 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media(max-width:900px){ .main-grid { grid-template-columns: 1fr; } }
+
+  /* ── SUMMARY CARDS ── */
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding: 0 32px 0;
+    max-width: 1400px;
+    margin: 24px auto 0;
+  }
+  @media(max-width:900px){ .summary-row { grid-template-columns: 1fr 1fr; } }
+  @media(max-width:500px){ .summary-row { grid-template-columns: 1fr; } }
+
+  .summary-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
+    border-right: 5px solid var(--primary);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .summary-card.income  { border-color: var(--income-color); }
+  .summary-card.expense { border-color: var(--expense-color); }
+  .summary-card.balance { border-color: #8b5cf6; }
+  .summary-card.saving  { border-color: var(--warning); }
+
+  .summary-card .label {
+    font-size: .82rem;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .summary-card .value {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .summary-card .value.positive { color: var(--income-color); }
+  .summary-card .value.negative { color: var(--expense-color); }
+  .summary-card .icon { font-size: 1.8rem; }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 16px 20px;
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-header.income-h  { background: #f0fdf4; color: var(--income-color); }
+  .card-header.expense-h { background: #fff1f2; color: var(--expense-color); }
+  .card-body { padding: 20px; }
+
+  /* ── FORM ── */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  @media(max-width:600px){ .form-row { grid-template-columns: 1fr; } }
+
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: .82rem; font-weight: 600; color: var(--muted); }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: .9rem;
+    color: var(--text);
+    background: white;
+    transition: border-color .2s;
+    font-family: inherit;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+  }
+  .btn-full {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    font-size: .95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .2s;
+    margin-top: 4px;
+  }
+  .btn-full:active { transform: scale(.98); }
+  .btn-income  { background: var(--income-color); color: white; }
+  .btn-income:hover  { background: #15803d; box-shadow: 0 4px 12px rgba(22,163,74,.4); }
+  .btn-expense { background: var(--expense-color); color: white; }
+  .btn-expense:hover { background: #b91c1c; box-shadow: 0 4px 12px rgba(220,38,38,.4); }
+
+  /* ── TRANSACTIONS LIST ── */
+  .tx-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+  .tx-list::-webkit-scrollbar { width: 5px; }
+  .tx-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .tx-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    transition: background .15s;
+  }
+  .tx-item:hover { background: #e9f0fb; }
+  .tx-left { display: flex; align-items: center; gap: 10px; }
+  .tx-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+  }
+  .tx-icon.income-icon  { background: #dcfce7; }
+  .tx-icon.expense-icon { background: #fee2e2; }
+  .tx-name { font-weight: 600; font-size: .9rem; }
+  .tx-date { font-size: .75rem; color: var(--muted); }
+  .tx-right { display: flex; align-items: center; gap: 12px; }
+  .tx-amount { font-weight: 700; font-size: 1rem; }
+  .tx-amount.income-amt  { color: var(--income-color); }
+  .tx-amount.expense-amt { color: var(--expense-color); }
+  .btn-del {
+    background: none; border: none; cursor: pointer;
+    color: #cbd5e1; font-size: 1rem;
+    padding: 4px 6px; border-radius: 6px;
+    transition: color .15s, background .15s;
+  }
+  .btn-del:hover { color: var(--danger); background: #fee2e2; }
+
+  .empty-state {
+    text-align: center;
+    padding: 30px;
+    color: var(--muted);
+    font-size: .9rem;
+  }
+  .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 8px; }
+
+  /* ── CHARTS ── */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 24px;
+    padding: 0 32px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media(max-width:900px){ .charts-row { grid-template-columns: 1fr; } }
+
+  .chart-card {
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
+    padding: 20px;
+  }
+  .chart-title {
+    font-weight: 700;
+    font-size: .95rem;
+    margin-bottom: 16px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── BUDGET PROGRESS ── */
+  .budget-section { grid-column: 1 / -1; }
+  .progress-item { margin-bottom: 14px; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: .85rem;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: var(--text);
+  }
+  .progress-bar {
+    height: 10px;
+    background: var(--bg);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 8px;
+    transition: width .6s ease;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--muted);
+    font-size: .8rem;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    text-align: center;
+  }
+  .modal h3 { font-size: 1.1rem; margin-bottom: 12px; }
+  .modal p  { color: var(--muted); margin-bottom: 20px; font-size: .9rem; }
+  .modal-actions { display: flex; gap: 10px; justify-content: center; }
+  .btn-cancel {
+    padding: 9px 22px; border: 1.5px solid var(--border);
+    border-radius: 8px; cursor: pointer; font-weight: 600;
+    background: white; color: var(--text);
+  }
+  .btn-confirm {
+    padding: 9px 22px; background: var(--danger);
+    color: white; border: none; border-radius: 8px;
+    cursor: pointer; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>💰 مدير المصروفات الشهرية</h1>
+    <div class="subtitle">تتبع دخلك ومصروفاتك بسهولة</div>
+  </div>
+  <div style="font-size:1.1rem;font-weight:600;opacity:.9;">
+    {{ arabic_months[current_month] }} {{ current_year }}
+  </div>
+</header>
+
+<!-- Month Selector -->
+<form method="GET" action="/">
+  <div class="month-bar">
+    <label>📅 اختر الشهر:</label>
+    <select name="month">
+      {% for num, name in [(1,'يناير'),(2,'فبراير'),(3,'مارس'),(4,'أبريل'),(5,'مايو'),(6,'يونيو'),(7,'يوليو'),(8,'أغسطس'),(9,'سبتمبر'),(10,'أكتوبر'),(11,'نوفمبر'),(12,'ديسمبر')] %}
+        <option value="{{ num }}" {% if num == current_month %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+    <select name="year">
+      {% for y in years_list %}
+        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">عرض</button>
+  </div>
+</form>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-container">
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Summary Cards -->
+<div class="summary-row">
+  <div class="summary-card income">
+    <div class="icon">💵</div>
+    <div class="label">إجمالي الدخل</div>
+    <div class="value positive">{{ "%.3f"|format(total_income) }} <small style="font-size:.6em">ر.ع</small></div>
+  </div>
+  <div class="summary-card expense">
+    <div class="icon">🛒</div>
+    <div class="label">إجمالي المصروفات</div>
+    <div class="value negative">{{ "%.3f"|format(total_expense) }} <small style="font-size:.6em">ر.ع</small></div>
+  </div>
+  <div class="summary-card balance">
+    <div class="icon">⚖️</div>
+    <div class="label">الرصيد المتبقي</div>
+    <div class="value {% if balance >= 0 %}positive{% else %}negative{% endif %}">
+      {{ "%.3f"|format(balance) }} <small style="font-size:.6em">ر.ع</small>
+    </div>
+  </div>
+</div>
+
+<!-- Main Grid: Forms + Lists -->
+<div class="main-grid">
+
+  <!-- Income Section -->
+  <div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header income-h">💚 إضافة دخل جديد</div>
+      <div class="card-body">
+        <form method="POST" action="/add_income">
+          <div class="form-row">
+            <div class="form-group">
+              <label>المبلغ (ر.ع)</label>
+              <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.000" required>
+            </div>
+            <div class="form-group">
+              <label>المصدر</label>
+              <select name="source" required>
+                {% for key, label, icon in income_sources %}
+                  <option value="{{ key }}">{{ icon }} {{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>التاريخ</label>
+              <input type="date" name="date" value="{{ current_year }}-{{ '%02d'|format(current_month) }}-01" required>
+            </div>
+            <div class="form-group">
+              <label>الوصف (اختياري)</label>
+              <input type="text" name="description" placeholder="وصف قصير...">
+            </div>
+          </div>
+          <button type="submit" class="btn-full btn-income">➕ إضافة دخل</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header income-h">📋 سجل الدخل</div>
+      <div class="card-body">
+        {% if incomes %}
+          <div class="tx-list">
+            {% for inc in incomes|sort(attribute='date', reverse=True) %}
+              {% set src = get_source_info(inc.source) %}
+              <div class="tx-item">
+                <div class="tx-left">
+                  <div class="tx-icon income-icon">{{ src[2] }}</div>
+                  <div>
+                    <div class="tx-name">{{ src[1] }}</div>
+                    <div class="tx-date">{{ inc.date.strftime('%Y/%m/%d') }}{% if inc.description %} · {{ inc.description }}{% endif %}</div>
+                  </div>
+                </div>
+                <div class="tx-right">
+                  <span class="tx-amount income-amt">+{{ "%.3f"|format(inc.amount) }}</span>
+                  <button class="btn-del" onclick="confirmDelete('/delete_income/{{ inc.id }}', '{{ "%.3f"|format(inc.amount) }} ر.ع')" title="حذف">🗑️</button>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-icon">💸</div>
+            <div>لا يوجد دخل مسجل لهذا الشهر</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Expense Section -->
+  <div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header expense-h">❤️‍🔥 إضافة مصروف جديد</div>
+      <div class="card-body">
+        <form method="POST" action="/add_expense">
+          <div class="form-row">
+            <div class="form-group">
+              <label>المبلغ (ر.ع)</label>
+              <input type="number" name="amount" step="0.001" min="0.001" placeholder="0.000" required>
+            </div>
+            <div class="form-group">
+              <label>الفئة</label>
+              <select name="category" required>
+                {% for key, label, icon in categories %}
+                  <option value="{{ key }}">{{ icon }} {{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>التاريخ</label>
+              <input type="date" name="date" value="{{ current_year }}-{{ '%02d'|format(current_month) }}-01" required>
+            </div>
+            <div class="form-group">
+              <label>الوصف (اختياري)</label>
+              <input type="text" name="description" placeholder="وصف قصير...">
+            </div>
+          </div>
+          <button type="submit" class="btn-full btn-expense">➕ إضافة مصروف</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header expense-h">📋 سجل المصروفات</div>
+      <div class="card-body">
+        {% if expenses %}
+          <div class="tx-list">
+            {% for exp in expenses|sort(attribute='date', reverse=True) %}
+              {% set cat = get_category_info(exp.category) %}
+              <div class="tx-item">
+                <div class="tx-left">
+                  <div class="tx-icon expense-icon">{{ cat[2] }}</div>
+                  <div>
+                    <div class="tx-name">{{ cat[1] }}</div>
+                    <div class="tx-date">{{ exp.date.strftime('%Y/%m/%d') }}{% if exp.description %} · {{ exp.description }}{% endif %}</div>
+                  </div>
+                </div>
+                <div class="tx-right">
+                  <span class="tx-amount expense-amt">-{{ "%.3f"|format(exp.amount) }}</span>
+                  <button class="btn-del" onclick="confirmDelete('/delete_expense/{{ exp.id }}', '{{ "%.3f"|format(exp.amount) }} ر.ع')" title="حذف">🗑️</button>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-icon">🛍️</div>
+            <div>لا يوجد مصروفات مسجلة لهذا الشهر</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Charts -->
+<div style="padding: 0 32px 24px; max-width:1400px; margin: 0 auto;">
+  <div class="chart-card">
+    <div class="chart-title">📊 مقارنة الدخل والمصروفات طوال العام {{ current_year }}</div>
+    <canvas id="barChart" height="80"></canvas>
+  </div>
+</div>
+
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div style="font-size:2.5rem;margin-bottom:12px;">🗑️</div>
+    <h3>تأكيد الحذف</h3>
+    <p id="deleteModalText">هل أنت متأكد من حذف هذا العنصر؟</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">إلغاء</button>
+      <a id="deleteConfirmBtn" class="btn-confirm">حذف</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  © 2024 مدير المصروفات الشهرية — بُني بـ Flask & SQLite
+</footer>
+
+<script>
+let barChart;
+
+async function loadCharts() {
+  const month = {{ current_month }};
+  const year  = {{ current_year }};
+  const res   = await fetch(`/api/chart_data?month=${month}&year=${year}`);
+  const data  = await res.json();
+
+  // Bar
+  const barCtx = document.getElementById('barChart').getContext('2d');
+  if (barChart) barChart.destroy();
+  barChart = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: data.bar.months,
+      datasets: [
+        { label: 'الدخل', data: data.bar.income, backgroundColor: 'rgba(22,163,74,.7)', borderRadius: 6 },
+        { label: 'المصروفات', data: data.bar.expense, backgroundColor: 'rgba(220,38,38,.7)', borderRadius: 6 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+loadCharts();
+
+function confirmDelete(url, amount) {
+  document.getElementById('deleteConfirmBtn').href = url;
+  document.getElementById('deleteModalText').textContent = `هل أنت متأكد من حذف هذا العنصر بقيمة ${amount}؟`;
+  document.getElementById('deleteModal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('deleteModal').classList.remove('active');
+}
+
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+</body>
+</html>
